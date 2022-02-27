@@ -1,0 +1,53 @@
+###################功能说明#####################
+###该脚本用来对离线VHD文件更新，导入系统补丁####
+################################################
+
+#####################################################实现过程#####################################################
+#1.使用Mount-VHD命令挂载VHD文件，该命令包含在Windows Server 2012中，挂载后的盘符无法确定，需要手工指定，如“U:\”#
+#2.使用DISM命令将补丁更新（.cab、.msu）导入到VHD文件中，并将日志输出到当前目录下 #
+#3.卸载VHD文件 #
+##################################################################################################################
+
+$VHD_File = "e:\vhd\test\win2008r2.vhdx"
+$Updates_Folder = "E:\vhd\Kb"
+#指定盘符
+$letter = "U:\"
+
+#DISM命令日志存放于当前脚本目录下
+$CurrentPath = $MyInvocation.MyCommand.Path.substring(0,$MyInvocation.MyCommand.Path.LastIndexOf('\')+1)
+#$today = Get-Date -UFormat "%Y%m%d"
+#$DISM_Log = $CurrentPath+"Result_$today.txt"
+
+#生成添加补丁更新的DISM命令
+Function Add_Updates ($Updates_Folder)
+{
+$Updates = gci $Updates_Folder |? {$_.Extension -eq ".msu" -or $_.Extension -eq ".cab"} |Select Fullname
+Foreach ($Update in $Updates)
+{
+$DISMcmd += "dism /Image:" + $letter + " /Add-Package /PackagePath:" + $Update.Fullname + " /IgnoreCheck" + "`n"
+}
+Return $DISMcmd
+}
+
+#挂载VHD文件，导入补丁更新
+Mount-VHD $VHD_File
+$Path_Win = Join-Path -Path $letter -ChildPath "Windows"
+$Path_ProgramFiles = Join-Path -Path $letter -ChildPath "Program Files"
+If ( (Test-Path -Path $Path_Win) -and ( Test-Path -Path $Path_ProgramFiles) )
+{
+$DISMcmds = Add_Updates $Updates_Folder
+$DISMcmds
+Invoke-Expression $DISMcmds #|Out-File $DISM_Log -Append
+Dismount-VHD $VHD_File
+}
+Else
+{
+$ws = New-Object -ComObject WScript.Shell
+$ws.popup("VHD盘符不正确，请重新指定！")
+}
+
+ 
+-----------------------------------
+©著作权归作者所有：来自51CTO博客作者momingliu的原创作品，请联系作者获取转载授权，否则将追究法律责任
+VHD_Update_mount-vhd
+https://blog.51cto.com/u_11508007/3595214
